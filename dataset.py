@@ -1,7 +1,6 @@
 import numpy as np
 import os
 import time
-from google_drive_downloader import GoogleDriveDownloader as gdd
 import pathlib
 from generate_training_data import generate_train_val_test
 from typing import NamedTuple
@@ -20,12 +19,12 @@ class Dataset(object):
         self.history_length = history_length
         self.name = name
 
-        if self.name == 'metr-la':
-            gdd.download_file_from_google_drive(file_id='1pAGRfzMx6K9WWsfDcD1NMbIif0T0saFC', dest_path=f"{path}/metr-la.h5", unzip=False)
-        elif self.name == 'pems-bay':
-            gdd.download_file_from_google_drive(file_id='1wD-mHlqAb2mtHOe_68fZvDh1LpDegMMq', dest_path=f"{path}/pems-bay.h5", unzip=False)
-        else:
-            raise Exception(f"unknown dataset: {self.name}")
+        # if self.name == 'metr-la':
+        #     gdd.download_file_from_google_drive(file_id='1pAGRfzMx6K9WWsfDcD1NMbIif0T0saFC', dest_path=f"{path}/metr-la.h5", unzip=False)
+        # elif self.name == 'pems-bay':
+        #     gdd.download_file_from_google_drive(file_id='1wD-mHlqAb2mtHOe_68fZvDh1LpDegMMq', dest_path=f"{path}/pems-bay.h5", unzip=False)
+        # else:
+        #     raise Exception(f"unknown dataset: {self.name}")
         pathlib.Path(f"{path}/{self.name}").mkdir(parents=True, exist_ok=True)
 
         dataset_parameters = {"history_length": self.history_length, 
