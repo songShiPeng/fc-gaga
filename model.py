@@ -69,6 +69,7 @@ class FcBlock(tf.keras.layers.Layer):
         h = self.fc_layers[0](inputs)
         for i in range(1, self.hyperparams.block_layers):
             h = self.fc_layers[i](h)
+        # graph gate
         backcast = tf.keras.activations.relu(inputs - self.backcast(h))
         return backcast, self.forecast(h)
 
@@ -104,26 +105,35 @@ class FcGagaLayer(tf.keras.layers.Layer):
                                                name=f"time_gate3")
         
     def call(self, history_in, node_id_in, time_of_day_in, training=False):
+        # 向量化
         node_id = self.node_id_em(node_id_in)
-
+        # 从张量形状中移除大小为1的维度
         node_embeddings = tf.squeeze(node_id[0,:,:])
+        # 从张量形状中移除大小为1的维度
         node_id = tf.squeeze(node_id, axis=-2)
 
+        # 拼接
         time_gate = self.time_gate1(tf.concat([node_id, time_of_day_in], axis=-1))
         time_gate_forward = self.time_gate2(time_gate)
         time_gate_backward = self.time_gate3(time_gate)
-
+        # 除以向后的时间特征
         history_in = history_in / (1.0 + time_gate_backward)
 
+        # 矩阵相乘   tf.transpose:转置
         node_embeddings_dp = tf.tensordot(node_embeddings,  tf.transpose(node_embeddings, perm=[1,0]), axes=1)
+        # 指数
         node_embeddings_dp = tf.math.exp(self.hyperparams.epsilon*node_embeddings_dp)
         node_embeddings_dp = node_embeddings_dp[tf.newaxis,:,:,tf.newaxis]
 
+        # 计算每个纬度的最大值
         level = tf.reduce_max(history_in, axis=-1, keepdims=True) 
 
+        # history_in 除以 level
         history = tf.math.divide_no_nan(history_in, level)
         # Add history of all other nodes
         shape = history_in.get_shape().as_list()
+        # 同一维度的复制
+        # 下面是开始图门的结构，图门的relu在blocks里
         all_node_history = tf.tile(history_in[:,tf.newaxis,:,:], multiples=[1,self.num_nodes,1,1])
 
         all_node_history = all_node_history * node_embeddings_dp
