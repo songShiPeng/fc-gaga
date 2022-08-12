@@ -35,8 +35,8 @@ class Dataset(object):
         self.data = {}
         for category in ['train', 'val', 'test']:
             data_filename = os.path.join(dataset_parameters["output_dir"], category + f"-history-{self.history_length}-horizon-{self.horizon}.npz")
-            # if not os.path.isfile(data_filename):
-            generate_train_val_test(DatasetParameters(**dataset_parameters))
+            if not os.path.isfile(data_filename):
+                generate_train_val_test(DatasetParameters(**dataset_parameters))
             cat_data = np.load(data_filename)
             self.data['x_' + category] = np.float32(cat_data['x'])
             self.data['y_' + category] = np.float32(cat_data['y'])
