@@ -104,7 +104,8 @@ class FcGagaLayer(tf.keras.layers.Layer):
                                                activation=None,
                                                name=f"time_gate3")
         
-    def call(self, history_in, node_id_in, time_of_day_in, training=False):
+    def call(self, history_in, node_id_in, time_of_day_in, day_of_week_in, training=False):
+        print("debug call" + "his:" + str(history_in) + "day:" + str(time_of_day_in) + "week:" + str(day_of_week_in))
         # 向量化
         node_id = self.node_id_em(node_id_in)
         # 从张量形状中移除大小为1的维度
@@ -113,7 +114,7 @@ class FcGagaLayer(tf.keras.layers.Layer):
         node_id = tf.squeeze(node_id, axis=-2)
 
         # 拼接
-        time_gate = self.time_gate1(tf.concat([node_id, time_of_day_in], axis=-1))
+        time_gate = self.time_gate1(tf.concat([node_id, time_of_day_in, day_of_week_in], axis=-1))
         time_gate_forward = self.time_gate2(time_gate)
         time_gate_backward = self.time_gate3(time_gate)
         # 除以向后的时间特征
@@ -183,17 +184,19 @@ class FcGaga:
     def get_model(self):
         history_in = tf.keras.layers.Input(shape=(self.num_nodes, self.hyperparams.history_length), name='history')
         time_of_day_in = tf.keras.layers.Input(shape=(self.num_nodes, self.hyperparams.history_length), name='time_of_day')
+        day_of_week_in = tf.keras.layers.Input(shape=(self.num_nodes, self.hyperparams.history_length), name='day_in_week')
         node_id_in = tf.keras.layers.Input(shape=(self.num_nodes, 1), dtype=tf.uint16, name='node_id')
         
-        backcast, forecast = self.fcgaga_layers[0](history_in=history_in, node_id_in=node_id_in, time_of_day_in=time_of_day_in)
+        backcast, forecast = self.fcgaga_layers[0](history_in=history_in, node_id_in=node_id_in, time_of_day_in=time_of_day_in, day_of_week_in= day_of_week_in)
         for nbg in self.fcgaga_layers[1:]:
-            backcast, forecast_graph = nbg(history_in=forecast, node_id_in=node_id_in, time_of_day_in=time_of_day_in)
+            backcast, forecast_graph = nbg(history_in=forecast, node_id_in=node_id_in, time_of_day_in=time_of_day_in,day_of_week_in= day_of_week_in)
             forecast = forecast + forecast_graph
         forecast = forecast / self.hyperparams.num_stacks
         forecast = tf.where(tf.math.is_nan(forecast), tf.zeros_like(forecast), forecast)
 
         inputs = {'history': history_in, 'node_id': node_id_in, 
-                  'time_of_day': time_of_day_in} 
+                  'time_of_day': time_of_day_in,
+                  'day_of_week' : day_of_week_in}
         outputs = {'targets': forecast}
         return inputs, outputs
 
