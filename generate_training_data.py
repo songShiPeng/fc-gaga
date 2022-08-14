@@ -28,8 +28,10 @@ def generate_graph_seq2seq_io_data(
         time_in_day = np.tile(time_ind, [1, num_nodes, 1]).transpose((2, 1, 0))
         data_list.append(time_in_day)
     if add_day_in_week:
-        day_in_week = np.zeros(shape=(num_samples, num_nodes, 7))
-        day_in_week[np.arange(num_samples), :, df.index.dayofweek] = 1
+        day_in_w = np.around(np.array(df.index.dayofweek / 6), decimals= 2)
+        day_in_week = np.tile(day_in_w, [1, num_nodes, 1]).transpose((2, 1, 0))
+        # day_in_week = np.zeros(shape=(num_samples, num_nodes, 7))
+        # day_in_week[np.arange(num_samples), :, df.index.dayofweek] = 1
         data_list.append(day_in_week)
 
     data = np.concatenate(data_list, axis=-1)
