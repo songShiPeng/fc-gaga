@@ -15,7 +15,7 @@ hyperparams_defaults = {
     "hidden_units": 128,
     "blocks": 2,
     "horizon": 12,
-    "history_length": 12,
+    "history_length": 12 * 24,
     "init_learning_rate": 1e-3,
     "decay_steps": 3, 
     "decay_rate": 0.5,
@@ -69,7 +69,7 @@ class FcBlock(tf.keras.layers.Layer):
         h = self.fc_layers[0](inputs)
         for i in range(1, self.hyperparams.block_layers):
             h = self.fc_layers[i](h)
-        # graph gate
+        # 残差结构
         backcast = tf.keras.activations.relu(inputs - self.backcast(h))
         return backcast, self.forecast(h)
 
@@ -120,6 +120,7 @@ class FcGagaLayer(tf.keras.layers.Layer):
         # 除以向后的时间特征
         history_in = history_in / (1.0 + time_gate_backward)
 
+        # 下面是开始图门的结构，图门的relu在blocks里
         # 矩阵相乘   tf.transpose:转置
         node_embeddings_dp = tf.tensordot(node_embeddings,  tf.transpose(node_embeddings, perm=[1,0]), axes=1)
         # 指数
@@ -134,7 +135,6 @@ class FcGagaLayer(tf.keras.layers.Layer):
         # Add history of all other nodes
         shape = history_in.get_shape().as_list()
         # 同一维度的复制
-        # 下面是开始图门的结构，图门的relu在blocks里
         all_node_history = tf.tile(history_in[:,tf.newaxis,:,:], multiples=[1,self.num_nodes,1,1])
 
         all_node_history = all_node_history * node_embeddings_dp
@@ -144,7 +144,7 @@ class FcGagaLayer(tf.keras.layers.Layer):
         history = tf.concat([history, all_node_history], axis=-1)
         # Add node ID
         history = tf.concat([history, node_id], axis=-1)
-
+        # 门控矩阵的传递，利用了第一个全连接块
         backcast, forecast_out = self.blocks[0](history)
         for i in range(1, self.hyperparams.blocks):
             backcast, forecast_block = self.blocks[i](backcast)
