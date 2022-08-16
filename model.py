@@ -11,21 +11,42 @@ hyperparams_defaults = {
     "repeat": list(range(5)),
     "epochs": [60], 
     "steps_per_epoch": [800],  # 800 METR-LA, 800 PEMS-BAY
-    "block_layers": 3,
+    "block_layers": 3,  # 全连接层数
     "hidden_units": 128,
-    "blocks": 2,
+    "blocks": 2,  # 全连接块个数
     "horizon": 12,
-    "history_length": 12 * 24,
+    "history_length": 12 * 24 * 7,
     "init_learning_rate": 1e-3,
-    "decay_steps": 3, 
+    "decay_steps": 3,
     "decay_rate": 0.5,
     "batch_size": 4,
     "weight_decay": 1e-5,
     "node_id_dim": 64,
-    "num_nodes": 207, # 207 | 325
-    "num_stacks": [3],
+    "num_nodes": 207,  # 207 | 325
+    "num_stacks": [9], # fc-gaga块个数
     "epsilon": 10
 }
+
+# hyperparams_defaults = {
+#     "dataset": "metr-la",
+#     "repeat": list(range(5)),
+#     "epochs": [60],
+#     "steps_per_epoch": [800],  # 800 METR-LA, 800 PEMS-BAY
+#     "block_layers": 3,  # 全连接层数
+#     "hidden_units": 128,
+#     "blocks": 2,  # 全连接块个数
+#     "horizon": 12,
+#     "history_length": 12,
+#     "init_learning_rate": 1e-3,
+#     "decay_steps": 3,
+#     "decay_rate": 0.5,
+#     "batch_size": 4,
+#     "weight_decay": 1e-5,
+#     "node_id_dim": 64,
+#     "num_nodes": 207,  # 207 | 325
+#     "num_stacks": [3], # fc-gaga块个数
+#     "epsilon": 10
+# }
 
 class Parameters(NamedTuple):
     dataset: str
