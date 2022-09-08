@@ -19,7 +19,8 @@ def generate_graph_seq2seq_io_data(
     # x: (epoch_size, input_length, num_nodes, input_dim)
     # y: (epoch_size, output_length, num_nodes, output_dim)
     """
-
+    df_float = df.select_dtypes(include=['float'])
+    df_float = df.select_dtypes(include=['float'])
     num_samples, num_nodes = df.shape
     data = np.expand_dims(df.values, axis=-1)
     data_list = [data]
@@ -45,6 +46,8 @@ def generate_graph_seq2seq_io_data(
         y_t = data[t + y_offsets, ...]
         x.append(x_t)
         y.append(y_t)
+        del x_t
+        del y_t
     x = np.stack(x, axis=0)
     y = np.stack(y, axis=0)
     return x, y

@@ -11,11 +11,11 @@ hyperparams_defaults = {
     "repeat": list(range(1)),
     "epochs": [60], 
     "steps_per_epoch": [800],  # 800 METR-LA, 800 PEMS-BAY
-    "block_layers": 3,  # 全连接层数
+    "block_layers": 5,  # 全连接层数
     "hidden_units": 128,
-    "blocks": 2,  # 全连接块个数
+    "blocks": 3,  # 全连接块个数
     "horizon": 12,
-    "history_length": 12 * 24 * 7,
+    "history_length": 12,
     "init_learning_rate": 1e-3,
     "decay_steps": 3,
     "decay_rate": 0.5,
@@ -23,7 +23,7 @@ hyperparams_defaults = {
     "weight_decay": 1e-5,
     "node_id_dim": 64,
     "num_nodes": 207,  # 207 | 325
-    "num_stacks": [9], # fc-gaga块个数
+    "num_stacks": [3], # fc-gaga块个数
     "epsilon": 10
 }
 
@@ -80,6 +80,7 @@ class FcBlock(tf.keras.layers.Layer):
             self.fc_layers.append(
                 tf.keras.layers.Dense(hyperparams.hidden_units, 
                                       activation=tf.nn.relu,
+                                      # activation=tf.nn.softmax,
                                       kernel_regularizer=tf.keras.regularizers.l2(hyperparams.weight_decay),
                                       name=f"fc_{i}")
             )
@@ -104,7 +105,7 @@ class FcGagaLayer(tf.keras.layers.Layer):
         
         self.blocks = []
         for i in range(self.hyperparams.blocks): 
-            self.blocks.append(FcBlock(hyperparams=hyperparams, 
+            self.blocks.append(FcBlock(hyperparams=hyperparams,
                                            input_size=self.input_size, 
                                            output_size=hyperparams.horizon, 
                                            name=f"block_{i}"))
@@ -118,26 +119,45 @@ class FcGagaLayer(tf.keras.layers.Layer):
         self.time_gate1 = tf.keras.layers.Dense(hyperparams.hidden_units, 
                                                activation=tf.keras.activations.relu,
                                                name=f"time_gate1")
-        self.time_gate2 = tf.keras.layers.Dense(hyperparams.horizon, 
+
+        self.time_gate_fc1 = tf.keras.layers.Dense(hyperparams.hidden_units,
+                                                activation=tf.keras.activations.relu,
+                                                name=f"time_gate_fc")
+        self.time_gate_fc2 = tf.keras.layers.Dense(hyperparams.hidden_units,
+                                                  activation=tf.keras.activations.relu,
+                                                  name=f"time_gate_fc2")
+        self.time_gate2 = tf.keras.layers.Dense(hyperparams.horizon,
                                                activation=None,
                                                name=f"time_gate2")
-        self.time_gate3 = tf.keras.layers.Dense(hyperparams.history_length, 
+        self.time_gate3 = tf.keras.layers.Dense(hyperparams.history_length,
                                                activation=None,
                                                name=f"time_gate3")
         
     def call(self, history_in, node_id_in, time_of_day_in, day_in_week_in, training=False):
-        print("debug call" + "his:" + str(history_in) + "day:" + str(time_of_day_in) + "week:" + str(day_in_week_in))
+        print("debug call" + "his:" + str(history_in) + "day:" + str(time_of_day_in) + "week:" + str(day_in_week_in) + "node_id" + str(node_id_in))
         # 向量化
         node_id = self.node_id_em(node_id_in)
         # 从张量形状中移除大小为1的维度
         node_embeddings = tf.squeeze(node_id[0,:,:])
         # 从张量形状中移除大小为1的维度
         node_id = tf.squeeze(node_id, axis=-2)
-
+        # tf.config.experimental_run_functions_eagerly(True)
         # 拼接
-        time_gate = self.time_gate1(tf.concat([node_id, time_of_day_in, day_in_week_in], axis=-1))
-        time_gate_forward = self.time_gate2(time_gate)
-        time_gate_backward = self.time_gate3(time_gate)
+        # time_gate_1 = self.time_gate1(tf.concat([node_id, time_of_day_in, day_in_week_in], axis=-1))
+        time_gate_1 = self.time_gate1(tf.concat([node_id, time_of_day_in], axis=-1))
+        # time_gate_block = FcBlock(hyperparams=self.hyperparams,
+        #                           input_size= 128,
+        #                                    output_size=self.hyperparams.horizon,
+        #                                    name=f"block_time")
+        # time_gate_back, time_gate_forward = time_gate_block(time_gate_1)
+        # time_gate_2 = self.time_gate_fc(time_gate_1)
+        # time_gate = self.time_gate_fc2(time_gate_2)
+        # time_gate = self.time_gate1(tf.concat([node_id, time_of_day_in], axis=-1))
+        # time_gate_forward = self.time_gate_fc1(self.time_gate2(time_gate_1))
+        # time_gate_backward = self.time_gate_fc2(self.time_gate3(time_gate_1))
+
+        time_gate_forward = self.time_gate2(self.time_gate_fc2(time_gate_1))
+        time_gate_backward = self.time_gate3(self.time_gate_fc1(time_gate_1))
         # 除以向后的时间特征
         history_in = history_in / (1.0 + time_gate_backward)
 
@@ -171,8 +191,10 @@ class FcGagaLayer(tf.keras.layers.Layer):
             backcast, forecast_block = self.blocks[i](backcast)
             forecast_out = forecast_out + forecast_block
         forecast_out = forecast_out[:,:,:self.hyperparams.horizon]
+        # forecast_out = forecast_out[:,:,:self.hyperparams.history_length]
         forecast = forecast_out * level
 
+        # 乘以时间特征
         forecast = (1.0 + time_gate_forward) * forecast
 
         return backcast, forecast
@@ -210,7 +232,8 @@ class FcGaga:
         
         backcast, forecast = self.fcgaga_layers[0](history_in=history_in, node_id_in=node_id_in, time_of_day_in=time_of_day_in, day_in_week_in= day_in_week_in)
         for nbg in self.fcgaga_layers[1:]:
-            backcast, forecast_graph = nbg(history_in=forecast, node_id_in=node_id_in, time_of_day_in=time_of_day_in,day_in_week_in= day_in_week_in)
+            backcast, forecast_graph = nbg(history_in=forecast, node_id_in=node_id_in, time_of_day_in=time_of_day_in, day_in_week_in= day_in_week_in)
+            # forecast = forecast_graph # 取最新的
             forecast = forecast + forecast_graph
         forecast = forecast / self.hyperparams.num_stacks
         forecast = tf.where(tf.math.is_nan(forecast), tf.zeros_like(forecast), forecast)
@@ -248,12 +271,14 @@ class Trainer:
     def generator(self, ds, hyperparams: Parameters):
         while True:
             batch = ds.get_batch(batch_size=hyperparams.batch_size)
+
             weights = np.all(batch["y"] > 0, axis=-1, keepdims=False).astype(np.float32)
             weights = weights / np.prod(weights.shape)
             yield  {"history": batch["x"][...,0], "node_id": batch["node_id"], "time_of_day": batch["x"][...,1], "day_in_wekk": batch["x"][...,2]}, \
                    {"targets": batch["y"]}, \
-                   weights                  
-        
+ weights
+
+
     def fit(self, dataset, verbose=1):
         for i, hyperparams in enumerate(self.hyperparams):
             if verbose > 0:
@@ -274,6 +299,11 @@ class Trainer:
             self.models[i].model.compile(optimizer=tf.keras.optimizers.Adam(),
                                          loss={"targets": tf.keras.losses.MeanAbsoluteError(reduction=tf.keras.losses.Reduction.SUM)},
                                          loss_weights={"targets": 1.0})
+
+            # self.models[i].model.compile(optimizer=tf.keras.optimizers.Adam(),
+            #                              loss={"targets": tf.keras.losses.MeanAbsoluteError(
+            #                                  reduction=tf.keras.losses.Reduction.SUM)},
+            #                              loss_weights={"targets": 1.0})
                         
             fit_output = self.models[i].model.fit(self.generator(ds=dataset, hyperparams=hyperparams),
                                             callbacks=[lr, metrics], # tb

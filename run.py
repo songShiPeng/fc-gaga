@@ -22,7 +22,7 @@ if __name__ == '__main__':
     print("*********************************")
 
     hyperparams_dict["dataset"] = 'metr-la'
-    hyperparams_dict["horizon"] = 12
+    # hyperparams_dict["horizon"] = 12
     # hyperparams_dict["history_length"] = 12
 
     print("*********************************")

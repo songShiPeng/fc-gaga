@@ -55,6 +55,15 @@ class Dataset(object):
         batch['node_id'] = ids
         return batch
 
+    def get_batch_week(self, batch_size: int = 1024):
+        ts_idxs = np.random.choice(np.arange(7*1440, len(self.data['x_train'])), size=batch_size, replace=True)
+        ids = np.tile(np.arange(self.num_nodes)[np.newaxis,:], reps=[batch_size,1])
+        batch = dict()
+        batch['x'] = np.concatenate((self.data['x_train'][ts_idxs], self.data['x_train'][ts_idxs - 7 * 1440]), axis=2)
+        batch['y'] = self.data['y_train'][ts_idxs][...,0]
+        batch['node_id'] = ids
+        return batch
+
     def get_sequential_batch(self, batch_size: int = 1000, split: str = 'test'):
         num_batches = int(np.ceil(len(self.data[f"x_{split}"]) / batch_size))
         for i in range(num_batches):
